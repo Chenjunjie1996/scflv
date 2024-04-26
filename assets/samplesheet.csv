@@ -1,0 +1,4 @@
+sample,fastq_1,fastq_2
+Sample_X,https://github.com/singleron-RD/scflv_test_data/raw/master/GEXSCOPE-V2/test_R1.fastq.gz,https://github.com/singleron-RD/scflv_test_data/raw/master/GEXSCOPE-V2/test_R2.fastq.gz
+Sample_Y,https://github.com/singleron-RD/scflv_test_data/raw/master/GEXSCOPE-V2/Sample_Y_S1_L001_R1_001.fastq.gz,https://github.com/singleron-RD/scflv_test_data/raw/master/GEXSCOPE-V2/Sample_Y_S1_L001_R2_001.fastq.gz
+Sample_Y,https://github.com/singleron-RD/scflv_test_data/raw/master/GEXSCOPE-V2/Sample_Y_S1_L002_R1_001.fastq.gz,https://github.com/singleron-RD/scflv_test_data/raw/master/GEXSCOPE-V2/Sample_Y_S1_L002_R2_001.fastq.gz
