@@ -89,7 +89,7 @@
       "properties": {
         "protocol": {
           "type": "string",
-          "default": "auto",
+          "default": "GEXSCOPE-sCircle",
           "enum": ["auto", "GEXSCOPE-MicroBead", "GEXSCOPE-V1", "GEXSCOPE-V2", "GEXSCOPE-sCircle", "new"],
           "description": "Predefined pattern and whitelist.",
           "help_text": "If set to \"new\", --pattern and --whitelist are required. The default is to auto-detect the protocol when running GEXSCOPE. "

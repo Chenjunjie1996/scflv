@@ -5,6 +5,7 @@
 */
 
 include { MULTIQC                } from '../modules/local/multiqc_sgr/main'
+include { TRUST4                 } from '../modules/local/trust4/main'
 include { paramsSummaryMap       } from 'plugin/nf-validation'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -140,7 +141,26 @@ workflow scflv {
         "${projectDir}/assets/",
         params.protocol,
     )
+    ch_versions = ch_versions.mix(EXTRACT.out.versions.first())
 
+    BWA_INDEX (
+        params.fasta,
+        params.genome_name,
+    )
+
+    BWA_MEM (
+        EXTRACT.out.out_reads,
+        BWA_INDEX.out.index,
+        params.fasta,
+        true,
+    )
+
+    QUALIMAP_BAMQC(
+        BWA_MEM.out.bam,
+        [],
+    )
+    ch_multiqc_files = ch_multiqc_files.mix(QUALIMAP_BAMQC.out.results.collect{it[1]})
+    ch_versions = ch_versions.mix(QUALIMAP_BAMQC.out.versions.first())
     //
     // Collate and save software versions
     //
