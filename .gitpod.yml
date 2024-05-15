@@ -1,17 +1,20 @@
-# Image of workspace. Learn more: https://www.gitpod.io/docs/configure/workspaces/workspace-image
-image: gitpod/workspace-full:latest
-
-# List the start up tasks. Learn more: https://www.gitpod.io/docs/configure/workspaces/tasks
+image: nfcore/gitpod:latest
 tasks:
-  - name: Script Task
-    init: echo 'init script' # runs during prebuild => https://www.gitpod.io/docs/configure/projects/prebuilds
-    command: echo 'start script'
+  - name: Update Nextflow and setup pre-commit
+    command: |
+      pre-commit install --install-hooks
+      nextflow self-update
+  - name: unset JAVA_TOOL_OPTIONS
+    command: |
+      unset JAVA_TOOL_OPTIONS
 
-# List the ports to expose. Learn more: https://www.gitpod.io/docs/configure/workspaces/ports
-ports:
-  - name: Frontend
-    description: Port 3000 for the frontend
-    port: 3000
-    onOpen: open-preview
-
-# Learn more from ready-to-use templates: https://www.gitpod.io/docs/introduction/getting-started/quickstart
+vscode:
+  extensions: # based on nf-core.nf-core-extensionpack
+    - esbenp.prettier-vscode # Markdown/CommonMark linting and style checking for Visual Studio Code
+    - EditorConfig.EditorConfig # override user/workspace settings with settings found in .editorconfig files
+    - Gruntfuggly.todo-tree # Display TODO and FIXME in a tree view in the activity bar
+    - mechatroner.rainbow-csv # Highlight columns in csv files in different colors
+    # - nextflow.nextflow                    # Nextflow syntax highlighting
+    - oderwat.indent-rainbow # Highlight indentation level
+    - streetsidesoftware.code-spell-checker # Spelling checker for source code
+    - charliermarsh.ruff # Code linter Ruff
