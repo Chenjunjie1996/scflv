@@ -5,7 +5,6 @@
 */
 
 include { MULTIQC                } from '../modules/local/multiqc_sgr/main'
-include { TRUST4                 } from '../modules/local/trust4/main'
 include { paramsSummaryMap       } from 'plugin/nf-validation'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
