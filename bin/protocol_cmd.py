@@ -9,11 +9,15 @@ import logging
 import os
 import re
 import sys
-
+import pandas as pd
 import pyfastx
 
-logger = logging.getLogger(__name__)
 
+OUTS_DIR = 'outs'
+FILTERED_MATRIX_DIR_SUFFIX = 'filtered'
+BARCODE_FILE_NAME = 'barcodes.tsv.gz'
+
+logger = logging.getLogger(__name__)
 
 
 def openfile(file_name, mode='rt', **kwargs):
@@ -23,6 +27,54 @@ def openfile(file_name, mode='rt', **kwargs):
     else:
         file_obj = open(file_name, mode=mode, **kwargs)
     return file_obj
+
+
+def get_matrix_file_path(matrix_dir, file_name):
+    """
+    compatible with non-gzip file
+    """
+    non_gzip = file_name.strip('.gz')
+    file_path_list = [f'{matrix_dir}/{file_name}', f'{matrix_dir}/{non_gzip}']
+    for file_path in file_path_list:
+        if os.path.exists(file_path):
+            return file_path
+        
+        
+def get_matrix_dir_from_match_dir(match_dir):
+    """
+    Returns:
+        matrix_dir: PosixPath object
+    """
+    matrix_dir = f"{match_dir}/{OUTS_DIR}/{FILTERED_MATRIX_DIR_SUFFIX}"
+    if not os.path.exists(matrix_dir):
+        raise FileNotFoundError(f'{matrix_dir} not found')
+    
+    return matrix_dir
+
+
+def get_barcode_from_matrix_dir(matrix_dir):
+    """
+    Returns:
+        match_barcode: list
+        no_match_barcode: int
+    """
+  
+    match_barcode_file = get_matrix_file_path(matrix_dir, BARCODE_FILE_NAME)
+    match_barcode, n_match_barcode = read_one_col(match_barcode_file)
+
+    return match_barcode, n_match_barcode
+
+
+def get_barcode_from_match_dir(match_dir):
+    '''
+    multi version compatible
+    Returns:
+        match_barcode: list
+        no_match_barcode: int
+    '''
+    matrix_dir = get_matrix_dir_from_match_dir(match_dir)
+    return get_barcode_from_matrix_dir(matrix_dir)
+
 
 def get_seq_str(seq, sub_pattern):
     """
@@ -99,10 +151,16 @@ def get_mismatch_dict(seq_list, n_mismatch=1):
     return mismatch_dict
 
 
-def read_one_col(fn):
-    """read one column file into list"""
-    with open(fn) as f:
-        return [x.strip() for x in f]
+def read_one_col(file):
+    """
+    Read file with one column. Strip each line.
+    Returns col_list, line number
+    """
+    df = pd.read_csv(file, header=None)
+    col1 = list(df.iloc[:, 0])
+    col1 = [item.strip() for item in col1]
+    num = len(col1)
+    return col1, num
 
 
 def parse_pattern(pattern, allowed="CLUNT"):
@@ -141,7 +199,7 @@ def get_raw_mismatch(files: list, n_mismatch: int):
     """    
     raw_list, mismatch_list = [], []
     for f in files:
-        barcodes = read_one_col(f)
+        barcodes, _ = read_one_col(f)
         raw_list.append(set(barcodes))
         barcode_mismatch_dict = get_mismatch_dict(barcodes, n_mismatch)
         mismatch_list.append(barcode_mismatch_dict)
@@ -224,13 +282,18 @@ if __name__ == "__main__":
     parser.add_argument('--fq2', required=True)
     parser.add_argument('--assets_dir', required=True)
     parser.add_argument('--protocol', required=True)
+    parser.add_argument('--match_dir', required=True)
     args = parser.parse_args()
     # protocol
     protocol_dict = get_protocol_dict(args.assets_dir)
     protocol = protocol_dict[args.protocol]
     pattern_dict = protocol["pattern_dict"]
     raw_list,  mismatch_list = get_raw_mismatch(protocol["bc"], 1)
-
+    
+    match_barcodes = set(get_barcode_from_match_dir(args.match_dir)[0]) # barcode set of flv_rna.
+    match_num = 0 # record read number match with flv_rna.
+    match_cbs = set() # record barcode number match with flv_rna.
+    
     # out_fq
     out_fq_fn = {x: f"{args.sample}_R{x}.fq.gz" for x in [1,2]}
     outdict = {k:openfile(v,'wt') for k,v in out_fq_fn.items()}
@@ -252,7 +315,9 @@ if __name__ == "__main__":
             if not umi:
                 continue
             
-            if valid:
+            if valid and corrected_seq in match_barcodes:
+                match_num += 1
+                match_cbs.add(corrected_seq)
                 qual1 = 'F' * len(corrected_seq + umi)
                 outdict[2].write(f'@{corrected_seq}:{umi}:{n}\n{seq2}\n+\n{qual2}\n')
                 outdict[1].write(f'@{corrected_seq}:{umi}:{n}\n{corrected_seq}{umi}\n+\n{qual1}\n')
