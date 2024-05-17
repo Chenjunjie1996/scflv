@@ -100,7 +100,7 @@ process PROTOCOL_CMD  {
 
 process RUN_TRUST4 {
     tag "$meta.id"
-    label 'process_medium'
+    label 'process_high'
 
     conda "bioconda::trust4=1.1.1"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -138,6 +138,7 @@ process RUN_TRUST4 {
         -f ${fasta} \\
         -o ${prefix} \\
         --ref ${vdj_reference} \\
+        --readFormat ${readformat} \\
         $args
 
     cat <<-END_VERSIONS > versions.yml
@@ -166,6 +167,14 @@ process RUN_TRUST4 {
     END_VERSIONS
     """
 }
+
+// process FILTER {
+
+// }
+
+// process SUMMARIZE {
+
+// }
 
 workflow scflv {
 

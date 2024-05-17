@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema",
   "$id": "https://raw.githubusercontent.com/singleron-RD/scflv/master/nextflow_schema.json",
   "title": "singleron-RD/scflv pipeline parameters",
-  "description": "single cell RNASeq nextflow pipeline",
+  "description": "single cell full-length-vdj nextflow pipeline",
   "type": "object",
   "definitions": {
     "input_output_options": {
@@ -90,7 +90,7 @@
         "protocol": {
           "type": "string",
           "default": "GEXSCOPE-sCircle",
-          "enum": ["auto", "GEXSCOPE-MicroBead", "GEXSCOPE-V1", "GEXSCOPE-V2", "GEXSCOPE-sCircle", "new"],
+          "enum": ["GEXSCOPE-sCircle"],
           "description": "Predefined pattern and whitelist.",
           "help_text": "If set to \"new\", --pattern and --whitelist are required. The default is to auto-detect the protocol when running GEXSCOPE. "
         },

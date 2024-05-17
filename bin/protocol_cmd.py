@@ -284,40 +284,59 @@ if __name__ == "__main__":
     parser.add_argument('--protocol', required=True)
     parser.add_argument('--match_dir', required=True)
     args = parser.parse_args()
+    
+    # metrics 
+    raw_reads = 0
+    valid_reads = 0
+    valid_matched_reads = 0
+    valid_matched_barcodes = set()
+    match_barcodes = set(get_barcode_from_match_dir(args.match_dir)[0]) # barcode set of flv_rna.
+
     # protocol
     protocol_dict = get_protocol_dict(args.assets_dir)
     protocol = protocol_dict[args.protocol]
     pattern_dict = protocol["pattern_dict"]
     raw_list,  mismatch_list = get_raw_mismatch(protocol["bc"], 1)
-    
-    match_barcodes = set(get_barcode_from_match_dir(args.match_dir)[0]) # barcode set of flv_rna.
-    match_num = 0 # record read number match with flv_rna.
-    match_cbs = set() # record barcode number match with flv_rna.
-    
+        
     # out_fq
     out_fq_fn = {x: f"{args.sample}_R{x}.fq.gz" for x in [1,2]}
     outdict = {k:openfile(v,'wt') for k,v in out_fq_fn.items()}
 
     fq1_list = args.fq1.split(',')
     fq2_list = args.fq2.split(',')
-    n = 0
+    raw_reads = 0
     for fq1,fq2 in zip(fq1_list, fq2_list):
         fq1 = pyfastx.Fastx(fq1)
         fq2 = pyfastx.Fastx(fq2)
 
         for (name1, seq1, qual1), (name2,seq2,qual2) in zip(fq1, fq2):
-            n += 1
+            raw_reads += 1
             seq_list = get_seq_list(seq1, pattern_dict, 'C')
             # flv
             seq_list = [reverse_complement(seq) for seq in seq_list[::-1]]
             valid, corrected, corrected_seq = check_seq_mismatch(seq_list, raw_list, mismatch_list)
-            umi = get_seq_str(seq1, pattern_dict['U'])
-            if not umi:
-                continue
             
-            if valid and corrected_seq in match_barcodes:
-                match_num += 1
-                match_cbs.add(corrected_seq)
+            if valid:
+                valid_reads += 1
+                
+            umi = get_seq_str(seq1, pattern_dict['U'])  
+            if not umi:
+                continue              
+            if corrected_seq in match_barcodes:
+                valid_matched_reads += 1
+                valid_matched_barcodes.add(corrected_seq)
                 qual1 = 'F' * len(corrected_seq + umi)
-                outdict[2].write(f'@{corrected_seq}:{umi}:{n}\n{seq2}\n+\n{qual2}\n')
-                outdict[1].write(f'@{corrected_seq}:{umi}:{n}\n{corrected_seq}{umi}\n+\n{qual1}\n')
+                outdict[2].write(f'@{corrected_seq}:{umi}:{raw_reads}\n{seq2}\n+\n{qual2}\n')
+                outdict[1].write(f'@{corrected_seq}:{umi}:{raw_reads}\n{corrected_seq}{umi}\n+\n{qual1}\n')
+
+    data_dict = {
+        "sample": args.sample,
+        "Raw Reads": raw_reads,
+        "Valid Reads": valid_reads,
+        "Valid Match Reads": valid_matched_reads,
+        "Matched Barcodes": len(valid_matched_barcodes),
+    }
+    
+    stats_file = args.sample + ".protocol_stats.json"
+    with open(stats_file, "w") as f:
+        json.dump(data_dict, f)
