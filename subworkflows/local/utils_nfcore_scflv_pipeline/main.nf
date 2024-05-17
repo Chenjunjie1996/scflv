@@ -79,16 +79,16 @@ workflow PIPELINE_INITIALISATION {
     Channel
         .fromSamplesheet("input")
         .map {
-            meta, fastq_1, fastq_2, fastq_3 ->
-                return [ meta.id, meta + [ single_end:false ], [ fastq_1, fastq_2, fastq_3 ] ]
+            meta, fastq_1, fastq_2, match_dir ->
+                return [ meta.id, meta + [ single_end:false ], [ fastq_1, fastq_2 ], [ match_dir ] ]
         }
         .groupTuple()
         .map {
             validateInputSamplesheet(it)
         }
         .map {
-            meta, fastqs ->
-                return [ meta, fastqs.flatten() ]
+            meta, fastqs, match_dir ->
+                return [ meta, fastqs.flatten(), match_dir.flatten() ]
         }
         .set { ch_samplesheet }
 
@@ -144,7 +144,7 @@ workflow PIPELINE_COMPLETION {
 // Validate channels from input samplesheet
 //
 def validateInputSamplesheet(input) {
-    def (metas, fastqs) = input[1..2]
+    def (metas, fastqs, match_dir) = input[1..3]
 
     // Check that multiple runs of the same sample are of the same datatype i.e. single-end / paired-end
     def endedness_ok = metas.collect{ it.single_end }.unique().size == 1
@@ -152,7 +152,7 @@ def validateInputSamplesheet(input) {
         error("Please check input samplesheet -> Multiple runs of a sample must be of the same datatype i.e. single-end or paired-end: ${metas[0].id}")
     }
 
-    return [ metas[0], fastqs ]
+    return [ metas[0], fastqs, match_dir ]
 }
 
 //

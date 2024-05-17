@@ -67,8 +67,10 @@ process PROTOCOL_CMD  {
     conda 'conda-forge::pandas==1.5.2'
     container "biocontainers/pandas:1.5.2"
 
+    conda 'conda-forge::biopython==1.81'
+
     input:
-    tuple val(meta), path(reads)
+    tuple val(meta), path(reads), path(match_dir)
     path assets_dir
     val protocol
 
@@ -84,9 +86,10 @@ process PROTOCOL_CMD  {
         --sample ${meta.id} \\
         --fq1 ${r1.join( "," )} \\
         --fq2 ${r2.join( "," )} \\
+        --match_dir ${match_dir} \\
         --assets_dir ${assets_dir} \\
         --protocol ${protocol} 
-   
+
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -183,12 +186,13 @@ workflow scflv {
     ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]})
     ch_versions = ch_versions.mix(FASTQC.out.versions.first())
 
+    // protocol
     PROTOCOL_CMD (
         ch_samplesheet,
         "${projectDir}/assets/",
         params.protocol,
     )
-    ch_versions = ch_versions.mix(EXTRACT.out.versions.first())
+    ch_versions = ch_versions.mix(PROTOCOL_CMD.out.versions.first())
 
     RUN_TRUST4 (
         PROTOCOL_CMD.out.out_reads,
@@ -197,7 +201,7 @@ workflow scflv {
     )
 
     // ch_multiqc_files = ch_multiqc_files.mix(QUALIMAP_BAMQC.out.results.collect{it[1]})
-    ch_versions = ch_versions.mix(QUALIMAP_BAMQC.out.versions.first())
+    ch_versions = ch_versions.mix(RUN_TRUST4.out.versions.first())
     
     //
     // Collate and save software versions
