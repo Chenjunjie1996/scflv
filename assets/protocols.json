@@ -1,7 +1,7 @@
 {
   "GEXSCOPE-sCircle": {
-    "pattern": "C8L16C8L16C8U9L6",
+    "pattern": "U9C8L16C8L16C8",
     "bc": ["bc.txt", "bc.txt", "bc.txt"],
-    "linker": ["linker1.txt", "linker2.txt", "linker3.txt"]
+    "linker": ["linker1.txt", "linker2.txt"]
   }
 }
