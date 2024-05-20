@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from Bio.Seq import Seq
 import argparse
 import gzip
 import itertools
@@ -11,6 +10,7 @@ import re
 import sys
 import pandas as pd
 import pyfastx
+from Bio.Seq import Seq
 
 
 OUTS_DIR = 'outs'
@@ -20,9 +20,9 @@ BARCODE_FILE_NAME = 'barcodes.tsv.gz'
 logger = logging.getLogger(__name__)
 
 
-def openfile(file_name, mode='rt', **kwargs):
+def openfile(file_name, mode="rt", **kwargs):
     """open gzip or plain file"""
-    if file_name.endswith('.gz'):
+    if file_name.endswith(".gz"):
         file_obj = gzip.open(file_name, mode=mode, **kwargs)
     else:
         file_obj = open(file_name, mode=mode, **kwargs)
@@ -95,15 +95,16 @@ def get_seq_str(seq, sub_pattern):
     return "".join([seq[x] for x in sub_pattern])
 
 
-def get_seq_list(seq, pattern_dict, abbr):
-    """
-    >>> pattern_dict = Barcode.parse_pattern("C2L3C2")
-    >>> seq = "AAGGGTT"
-    >>> Barcode.get_seq_list(seq, pattern_dict, "C")
-    ['AA', 'TT']
-    """
-        
-    return [seq[item[0]: item[1]] for item in pattern_dict[abbr]]
+def get_seq_list(seq, sub_pattern):
+    seq_len = len(seq)
+    expect_len = sub_pattern[-1].stop
+    if seq_len < expect_len:
+        raise IndexError(f"read length({seq_len} bp) less than expected length({expect_len} bp) in read: {seq}")
+    return [seq[x] for x in sub_pattern]
+
+
+def get_seq_list_no_exception(seq, sub_pattern):
+    return [seq[x] for x in sub_pattern]
 
 
 def findall_mismatch(seq, n_mismatch=1, bases='ACGTN'):
@@ -296,11 +297,11 @@ if __name__ == "__main__":
     protocol_dict = get_protocol_dict(args.assets_dir)
     protocol = protocol_dict[args.protocol]
     pattern_dict = protocol["pattern_dict"]
-    raw_list,  mismatch_list = get_raw_mismatch(protocol["bc"], 1)
+    raw_list, mismatch_list = get_raw_mismatch(protocol["bc"], 1)
         
     # out_fq
-    out_fq_fn = {x: f"{args.sample}_R{x}.fq.gz" for x in [1,2]}
-    outdict = {k:openfile(v,'wt') for k,v in out_fq_fn.items()}
+    out_fq1 = open(f"{args.sample}_R1.fq" ,'w')
+    out_fq2 = open(f"{args.sample}_R2.fq" ,'w')
 
     fq1_list = args.fq1.split(',')
     fq2_list = args.fq2.split(',')
@@ -311,7 +312,7 @@ if __name__ == "__main__":
 
         for (name1, seq1, qual1), (name2,seq2,qual2) in zip(fq1, fq2):
             raw_reads += 1
-            seq_list = get_seq_list(seq1, pattern_dict, 'C')
+            seq_list = get_seq_list_no_exception(seq1, pattern_dict['C'])
             # flv
             seq_list = [reverse_complement(seq) for seq in seq_list[::-1]]
             valid, corrected, corrected_seq = check_seq_mismatch(seq_list, raw_list, mismatch_list)
@@ -319,16 +320,19 @@ if __name__ == "__main__":
             if valid:
                 valid_reads += 1
                 
-            umi = get_seq_str(seq1, pattern_dict['U'])  
-            if not umi:
-                continue              
-            if corrected_seq in match_barcodes:
-                valid_matched_reads += 1
-                valid_matched_barcodes.add(corrected_seq)
-                qual1 = 'F' * len(corrected_seq + umi)
-                outdict[2].write(f'@{corrected_seq}:{umi}:{raw_reads}\n{seq2}\n+\n{qual2}\n')
-                outdict[1].write(f'@{corrected_seq}:{umi}:{raw_reads}\n{corrected_seq}{umi}\n+\n{qual1}\n')
+                umi = get_seq_str(seq1, pattern_dict['U'])  
+                if not umi:
+                    continue              
+                if corrected_seq in match_barcodes:
+                    valid_matched_reads += 1
+                    valid_matched_barcodes.add(corrected_seq)
+                    qual1 = 'F' * len(corrected_seq + umi)
+                    out_fq2.write(f"@{corrected_seq}:{umi}:{raw_reads}\n{seq2}\n+\n{qual2}\n")
+                    out_fq1.write(f"@{corrected_seq}:{umi}:{raw_reads}\n{corrected_seq}{umi}\n+\n{qual1}\n")
 
+    out_fq1.close()
+    out_fq2.close()
+            
     data_dict = {
         "sample": args.sample,
         "Raw Reads": raw_reads,

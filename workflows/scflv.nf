@@ -26,7 +26,7 @@ process FASTQC {
         'biocontainers/fastqc:0.12.1--hdfd78af_0' }"
 
     input:
-    tuple val(meta), path(reads)
+    tuple val(meta), path(reads), path(match_dir)
 
     output:
     tuple val(meta), path("*.html"), emit: html
@@ -67,7 +67,7 @@ process PROTOCOL_CMD  {
     conda 'conda-forge::pandas==1.5.2'
     container "biocontainers/pandas:1.5.2"
 
-    conda 'conda-forge::biopython==1.81'
+    conda 'conda-forge::biopython==1.82'
 
     input:
     tuple val(meta), path(reads), path(match_dir)
@@ -76,6 +76,7 @@ process PROTOCOL_CMD  {
 
     output:
     tuple val(meta), path("${meta.id}_R*.fq*"),  emit: out_reads
+    path "${meta.id}.protocol_stats.json", emit: protocol_stats_json
     path  "versions.yml" , emit: versions
 
     script:
@@ -109,8 +110,8 @@ process RUN_TRUST4 {
 
     input:
     tuple val(meta), path(reads)
-    tuple val(meta2), path(fasta)
-    tuple val(meta3), path(vdj_reference)
+    path(fasta)
+    path(vdj_reference)
 
     output:
     tuple val(meta), path("*.tsv")          , emit: tsv
