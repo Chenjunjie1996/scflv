@@ -64,16 +64,13 @@
       "description": "",
       "default": "",
       "properties": { 
-        "fasta": {
-          "type": "string",
-          "format": "file-path",
-          "description": "path to the fasta file coordinate and sequence of V/D/J/C genes."
-        },
-        "vdj_reference": {
-          "type": "string",
-          "format": "file-path",
-          "description": "path to detailed V/D/J/C gene reference file from IMGT database."
-        }
+        "species": {
+            "type": "string",
+            "default": "human",
+            "enum": ["human, mouse"],
+            "description": "species.",
+            "help_text": "human or mouse."
+          }
       }
     },
     "max_job_request_options": {

@@ -68,6 +68,7 @@ process PROTOCOL_CMD  {
     container "biocontainers/pandas:1.5.2"
 
     conda 'conda-forge::biopython==1.82'
+    container "biocontainers/biopython:1.82"
 
     input:
     tuple val(meta), path(reads), path(match_dir)
@@ -95,6 +96,8 @@ process PROTOCOL_CMD  {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         pyfastx: \$(pyfastx --version | sed -e "s/pyfastx version //g")
+        pandas: \$(pandas --version | sed -e "s/pandas version //g")
+        biopython: \$(biopython --version | sed -e "s/biopython version //g")
     END_VERSIONS
     """
 }
@@ -108,19 +111,29 @@ process RUN_TRUST4 {
         'https://depot.galaxyproject.org/singularity/trust4:1.1.1--h43eeafb_0':
         'biocontainers/trust4:1.1.1--h43eeafb_0' }"
 
+    conda "conda-forge::gawk"
+    
     input:
     tuple val(meta), path(reads)
-    path(fasta)
-    path(vdj_reference)
+    val (species)
 
     output:
-    tuple val(meta), path("*.tsv")          , emit: tsv
-    tuple val(meta), path("*_airr.tsv")     , emit: airr_tsv
-    tuple val(meta), path("*_report.tsv")   , emit: report_tsv
-    tuple val(meta), path("*.fa")           , emit: fasta
-    tuple val(meta), path("*.out")          , emit: out
-    tuple val(meta), path("*.fq")           , emit: fq
-    path "versions.yml"                     , emit: versions
+    tuple val(meta), path("*_toassemble*")         , emit: candidate_reads
+    tuple val(meta), path("*_report.tsv")          , emit: report_tsv
+    tuple val(meta), path("*_filter_report.tsv")   , emit: filter_report_tsv
+    tuple val(meta), path("*_raw.out")             , emit: raw_out
+    tuple val(meta), path("*_final.out")           , emit: final_out
+    tuple val(meta), path("*_cdr3.out")            , emit: cdr3_out
+    tuple val(meta), path("*_assign.out")          , emit: assign_out
+    tuple val(meta), path("*_barcode_report.tsv")  , emit: barcode_report
+    tuple val(meta), path("*_barcode_airr.tsv")    , emit: barcode_airr
+    tuple val(meta), path("*_b.csv")               , emit: barcode_report_b
+    tuple val(meta), path("*_t.csv")               , emit: barcode_report_t
+    tuple val(meta), path("*_assembled_reads.fa")  , emit: assembled_reads
+    tuple val(meta), path("*_annot.fa")            , emit: annot_fa
+    tuple val(meta), path("*_airr.tsv")            , emit: airr_tsv
+    tuple val(meta), path("*_airr_align.tsv")      , emit: airr_alin
+    path "versions.yml"                            , emit: versions
 
     when:
     task.ext.when == null || task.ext.when
@@ -131,6 +144,15 @@ process RUN_TRUST4 {
     def (r1, r2) = reads.collate(2).transpose()
     def readformat = task.ext.readformat ?: "bc:0:23,um:24:-1"
     def run_trust4_cmd = "-u ${r2[0]} --barcode ${r1[0]} --UMI ${r1[0]} --outputReadAssignment"
+    def fasta = null
+    def vdj_reference = null
+    if( species == 'human' ) {
+        fasta = "${projectDir}/assets/human/hg38_bcrtcr.fa"
+        vdj_reference = "${projectDir}/assets/human/human_IMGT+C.fa"
+    } else {
+        fasta = "${projectDir}/assets/mouse/GRCm38_bcrtcr.fa.fa"
+        vdj_reference = "${projectDir}/assets/mouse/mouse_IMGT+C.fa"
+    }
     """
     echo $vdj_reference
     run-trust4 \\
@@ -142,25 +164,9 @@ process RUN_TRUST4 {
         --readFormat ${readformat} \\
         $args
 
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        trust4: \$(run-trust4 2>&1 | grep -o 'v[0-9.]*-r[0-9]*' | sed 's/^/TRUST4 using /' )
-    END_VERSIONS
-    """
-
-    stub:
-    def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
-    """
-    touch ${prefix}_airr.tsv
-    touch ${prefix}_airr_align.tsv
-    touch ${prefix}_report.tsv
-    touch ${prefix}_assembled_reads.fa
-    touch ${prefix}_annot.fa
-    touch ${prefix}_cdr3.out
-    touch ${prefix}_raw.out
-    touch ${prefix}_final.out
-    touch ${prefix}_toassemble.fq
+    gawk '$4!~"_" && $4!~"?"' ${prefix}_report.tsv > ${prefix}_filter_report.tsv
+    
+    perl trust-barcoderep-to-10X.pl ${prefix}_barcode_report.tsv ${prefix}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -169,11 +175,56 @@ process RUN_TRUST4 {
     """
 }
 
-// process FILTER {
+process SUMMARIZE {
+    tag "$meta.id"
+    label 'process_single'
 
-// }
+    conda 'conda-forge::pandas==1.5.2'
+    container "biocontainers/pandas:1.5.2"
 
-// process SUMMARIZE {
+    conda 'bioconda::pyfastx=2.1.0'
+    container "biocontainers/pyfastx:2.1.0--py39h3d4b85c_0"
+
+    conda 'conda-forge::numpy==1.24.4'
+    container "biocontainers/numpy:1.24.4"
+
+    input:
+    tuple val(meta), path(reads), path(match_dir)
+    val seqtype
+    val coef
+    val expected_target_cell_num
+    val target_cell_barcode
+    val target_weight
+    path fq2
+    path assembled_reads
+    path filter_report_tsv
+    path annot_fa
+    path barcode_report
+
+    output:
+    path "${meta.id}.count.txt", emit: umi_count_txt
+    path "${meta.id}.cells_stats.json", emit: summary_json
+    path "${meta.id}.umi_count.json", emit: umi_count_json
+
+    script:
+
+    """
+    summarize.py \\
+        --sample ${meta.id} \\
+        --seqtype ${seqtype} \\
+        --coef ${coef} \\
+        --expected_target_cell_num ${expected_target_cell_num} \\
+        --target_cell_barcode ${target_cell_barcode} \\
+        --target_weight ${target_weight} \\
+        --fq2 ${fq2} \\
+        --assembled_reads ${assembled_reads} \\
+        --filter_report_tsv ${filter_report_tsv} \\
+        --annot_fa ${annot_fa} \\
+        --barcode_report ${barcode_report} \\
+    """
+}
+
+// process ANNOTATE {
 
 // }
 
@@ -187,9 +238,7 @@ workflow scflv {
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
 
-    //
     // MODULE: Run FastQC
-    //
     FASTQC (
         ch_samplesheet
     )
@@ -204,15 +253,20 @@ workflow scflv {
     )
     ch_versions = ch_versions.mix(PROTOCOL_CMD.out.versions.first())
 
+    // trust4
     RUN_TRUST4 (
         PROTOCOL_CMD.out.out_reads,
-        params.fasta,
-        params.vdj_reference,
+        params.species,
     )
 
     // ch_multiqc_files = ch_multiqc_files.mix(QUALIMAP_BAMQC.out.results.collect{it[1]})
     ch_versions = ch_versions.mix(RUN_TRUST4.out.versions.first())
     
+    // SUMMARIZE
+
+    // ANNOTATE
+
+
     //
     // Collate and save software versions
     //
