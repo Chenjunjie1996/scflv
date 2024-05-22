@@ -193,8 +193,8 @@ process SUMMARIZE {
     val seqtype
     val coef
     val expected_target_cell_num
-    val target_cell_barcode
     val target_weight
+    path target_cell_barcode
     path fq2
     path assembled_reads
     path filter_report_tsv
@@ -205,9 +205,15 @@ process SUMMARIZE {
     path "${meta.id}.count.txt", emit: umi_count_txt
     path "${meta.id}.cells_stats.json", emit: summary_json
     path "${meta.id}.umi_count.json", emit: umi_count_json
+    tuple val(meta), path("clonotypes.csv"), emit: clonotype
+    tuple val(meta), path("${meta.id}_all_contig.csv"), emit: all_contig_csv
+    tuple val(meta), path("${meta.id}_filtered_contig.csv"), emit: filter_contig_csv
+    tuple val(meta), path("${meta.id}_all_contig.fasta"), emit: all_contig_fa
+    tuple val(meta), path("${meta.id}_filtered_contig.fasta"), emit: filter_contig_fa
 
     script:
-
+    // separate forward from reverse pairs
+    def (r1, r2) = reads.collate(2).transpose()
     """
     summarize.py \\
         --sample ${meta.id} \\
@@ -216,7 +222,7 @@ process SUMMARIZE {
         --expected_target_cell_num ${expected_target_cell_num} \\
         --target_cell_barcode ${target_cell_barcode} \\
         --target_weight ${target_weight} \\
-        --fq2 ${fq2} \\
+        --fq2 ${r2} \\
         --assembled_reads ${assembled_reads} \\
         --filter_report_tsv ${filter_report_tsv} \\
         --annot_fa ${annot_fa} \\
@@ -263,6 +269,23 @@ workflow scflv {
     ch_versions = ch_versions.mix(RUN_TRUST4.out.versions.first())
     
     // SUMMARIZE
+    if (params.seqtype == 'BCR' ) {
+        barcode_report = RUN_TRUST4.out.barcode_report_b
+    } else {
+        barcode_report = RUN_TRUST4.out.barcode_report_t
+    }
+    SUMMARIZE (
+        params.seqtype,
+        params.coef,
+        params.expected_target_cell_num,
+        params.target_weight,
+        params.target_cell_barcode,
+        PROTOCOL_CMD.out.reads,
+        RUN_TRUST4.out.assembled_reads,
+        RUN_TRUST4.out.filter_report_tsv,
+        RUN_TRUST4.out.annot_fa,
+        barcode_report
+    )
 
     // ANNOTATE
 
