@@ -5,6 +5,7 @@ import pyfastx
 import copy
 import json
 import argparse
+import utils
 
 
 MAX_CELL = 2 * 10**5
@@ -306,7 +307,7 @@ def gen_summary(sample, fq2, assembled_reads, seqtype, df_for_clono):
         "Estimated Number of Cells": total_cells,
         "Mean Read Pairs per Cell": int(read_count/total_cells),
         "Mean Used Read Pairs per Cell": int(used_read/total_cells),
-        "Fraction of Reads in Cells": f'({round(used_read / read_count_all * 100, 2)}%)',
+        "Fraction of Reads in Cells": utils.format_value(used_read, read_count_all),
     }
 
     for c in chains:
@@ -373,19 +374,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--sample', required=True)
     parser.add_argument('--seqtype', required=True)
-    parser.add_argument('--coef', required=True) # help='coef for auto filter', default=5
+    parser.add_argument('--coef', required=True)
     parser.add_argument("--expected_target_cell_num", required=True)
-    #help="Expected T or B cell number. If `--target_cell_barcode` is provided, this argument is ignored.", 
-    #type=int,
-    #default=3000,
     parser.add_argument('--target_cell_barcode')
-    #help="Barcode of target cells. Auto or path of plain text file with one barcode per line",
-    #default=None)
     parser.add_argument("--target_weight", required=True)
-    #help="UMIs of the target cells are multiplied by this factor. Only used when `--target_cell_barcode` is provided.", 
-    #type=float,
-    #default=6.0,
-    parser.add_argument('--fq2', required=True) #  help='Barcode R2 reads.'
+    parser.add_argument('--fq2', required=True)
     parser.add_argument('--assembled_reads', required=True)
     parser.add_argument('--filter_report_tsv', required=True)
     parser.add_argument('--annot_fa', required=True)
