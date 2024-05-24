@@ -230,9 +230,31 @@ process SUMMARIZE {
     """
 }
 
-// process ANNOTATE {
+process ANNOTATE {
+    tag "$meta.id"
+    label 'process_single'
 
-// }
+    conda 'conda-forge::pandas==1.5.2'
+    container "biocontainers/pandas:1.5.2"
+
+    input:
+    tuple val(meta), path(reads), path(match_dir)
+    val seqtype
+    path filter_contig_csv
+    path clonotype
+
+    output:
+    path "${meta.id}..V(D)J_Annotation.json", emit: annotation_json
+
+    script:
+    """
+    annotate.py \\
+        --sample ${meta.id} \\
+        --seqtype ${seqtype} \\
+        --annot_fa ${filter_contig_csv} \\
+        --barcode_report ${clonotype} \\
+    """
+}
 
 workflow scflv {
 
@@ -288,7 +310,11 @@ workflow scflv {
     )
 
     // ANNOTATE
-
+    ANNOTATE (
+        params.seqtype,
+        SUMMARIZE.out.filter_contig_csv,
+        SUMMARIZE.out.clonotype
+    )
 
     //
     // Collate and save software versions

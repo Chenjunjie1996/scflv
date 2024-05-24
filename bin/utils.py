@@ -14,3 +14,12 @@ def read_one_col(fn):
     """read one column file into list"""
     with openfile(fn) as f:
         return [x.strip() for x in f]
+
+
+def format_value(value, total=None):
+    display = value
+    if total:
+        fraction = round(value / total * 100, 2)
+        display += f'({fraction}%)'
+    return display
+
