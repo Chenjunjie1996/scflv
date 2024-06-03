@@ -221,7 +221,7 @@ process SUMMARIZE {
         --expected_target_cell_num ${expected_target_cell_num} \\
         --target_cell_barcode ${params.target_cell_barcode} \\
         --target_weight ${target_weight} \\
-        --fq2 ${r2} \\
+        --fq2 ${r2[0]} \\
         --assembled_reads ${assembled_reads} \\
         --filter_report_tsv ${filter_report_tsv} \\
         --annot_fa ${annot_fa} \\

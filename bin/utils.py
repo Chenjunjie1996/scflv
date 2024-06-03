@@ -26,7 +26,7 @@ def read_one_col(file):
 
 
 def format_value(value, total=None):
-    display = value
+    display = str(value)
     if total:
         fraction = round(value / total * 100, 2)
         display += f'({fraction}%)'

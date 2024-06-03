@@ -54,7 +54,7 @@ class Auto():
         self.array = [x for x in array if x > 0 ]
         self.percentile = percentile
         self.coef = int(coef)
-        self.expected_cell_num = expected_cell_num
+        self.expected_cell_num = int(expected_cell_num)
         self.kwargs = kwargs
     
     def run(self):
@@ -120,11 +120,11 @@ def parse_contig_file(sample, barcode_report, annot_fa):
     # add length of each contig. 
     len_dict = dict()
     all_fa = open(f'{sample}_all_contig.fasta' , 'w')
-    fa = pyfastx.Fastx(annot_fa)
+    fa = pyfastx.Fasta(annot_fa)
     for read in fa:
-        len_dict[read.name] = read.comment.split(' ')[0]
+        len_dict[read.name] = read.description.split(' ')[1]
         if read.name in contig_set:
-            sequence = read.sequence
+            sequence = read.seq
             all_fa.write('>' + read.name + '\n' + sequence + '\n')    
     all_fa.close()
     df['length'] = df['contig_id'].apply(len_dict.get)
@@ -201,11 +201,11 @@ def filter_fasta(sample, cell_barcodes):
     filter_contig_fasta = f'{sample}_filtered_contig.fasta'
 
     filter_contig_fasta = open(filter_contig_fasta,'w')
-    fa = pyfastx.Fastx(all_contig_fasta)
+    fa = pyfastx.Fasta(all_contig_fasta)
     for read in fa:
         name = read.name
         cb = '_'.join(name.split('_')[:-1]) # remove the suffix num in "bc1_bc2_bc3_num"
-        sequence = read.sequence
+        sequence = read.seq
         if cb in cell_barcodes:
             filter_contig_fasta.write('>' + name + '\n' + sequence + '\n')
 
@@ -277,8 +277,8 @@ def gen_summary(sample, fq2, assembled_reads, seqtype, df_for_clono):
     fq = pyfastx.Fastx(fq2)
     for read in fq:
         read_count_all+=1
-        cb = read.name.split(':')[0]
-        umi = read.name.split(':')[1]
+        cb = read[0].split(':')[0]
+        umi = read[0].split(':')[1]
         umi_dict[cb].add(umi)
         if cb in cell_barcodes:
             read_count+=1
@@ -296,7 +296,7 @@ def gen_summary(sample, fq2, assembled_reads, seqtype, df_for_clono):
     used_read = 0
     fa = pyfastx.Fastx(assembled_reads)
     for read in fa:
-        bc = read.name.split(':')[0]
+        bc = read[0].split(':')[0]
         if bc in cell_barcodes:
             used_read += 1
     
@@ -396,7 +396,7 @@ if __name__ == "__main__":
     original_df = parse_contig_file(args.sample, args.barcode_report, args.annot_fa)
     df_for_clono, cell_barcodes, filtered_contig = cell_calling(
         original_df, args.seqtype, args.filter_report_tsv,
-        args.expected_target_cell_num, args.target_barcodes, args.target_weight, args.coef
+        args.expected_target_cell_num, target_barcodes, args.target_weight, args.coef
     )
     filter_fasta(args.sample, cell_barcodes)
     parse_clonotypes(args.sample, original_df, df_for_clono, cell_barcodes, filtered_contig)
