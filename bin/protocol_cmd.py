@@ -10,6 +10,7 @@ import re
 import sys
 import pandas as pd
 import pyfastx
+import utils
 from Bio.Seq import Seq
 
 
@@ -60,7 +61,7 @@ def get_barcode_from_matrix_dir(matrix_dir):
     """
   
     match_barcode_file = get_matrix_file_path(matrix_dir, BARCODE_FILE_NAME)
-    match_barcode, n_match_barcode = read_one_col(match_barcode_file)
+    match_barcode, n_match_barcode = utils.read_one_col(match_barcode_file)
 
     return match_barcode, n_match_barcode
 
@@ -152,18 +153,6 @@ def get_mismatch_dict(seq_list, n_mismatch=1):
     return mismatch_dict
 
 
-def read_one_col(file):
-    """
-    Read file with one column. Strip each line.
-    Returns col_list, line number
-    """
-    df = pd.read_csv(file, header=None)
-    col1 = list(df.iloc[:, 0])
-    col1 = [item.strip() for item in col1]
-    num = len(col1)
-    return col1, num
-
-
 def parse_pattern(pattern, allowed="CLUNT"):
     """
     >>> pattern_dict = parse_pattern("C8L16C8L16C8L1U12T18")
@@ -200,7 +189,7 @@ def get_raw_mismatch(files: list, n_mismatch: int):
     """    
     raw_list, mismatch_list = [], []
     for f in files:
-        barcodes, _ = read_one_col(f)
+        barcodes, _ = utils.read_one_col(f)
         raw_list.append(set(barcodes))
         barcode_mismatch_dict = get_mismatch_dict(barcodes, n_mismatch)
         mismatch_list.append(barcode_mismatch_dict)

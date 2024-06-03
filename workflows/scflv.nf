@@ -67,8 +67,8 @@ process PROTOCOL_CMD  {
     conda 'conda-forge::pandas==1.5.2'
     container "biocontainers/pandas:1.5.2"
 
-    conda 'conda-forge::biopython==1.82'
-    container "biocontainers/biopython:1.82"
+    conda 'conda-forge::biopython==1.78'
+    container "biocontainers/biopython:1.78"
 
     input:
     tuple val(meta), path(reads), path(match_dir)
@@ -112,6 +112,7 @@ process RUN_TRUST4 {
         'biocontainers/trust4:1.1.1--h43eeafb_0' }"
 
     conda "conda-forge::gawk"
+    container "biocontainers/gawk:5.3.0"
     
     input:
     tuple val(meta), path(reads)
@@ -164,9 +165,9 @@ process RUN_TRUST4 {
         --readFormat ${readformat} \\
         $args
 
-    gawk '$4!~"_" && $4!~"?"' ${prefix}_report.tsv > ${prefix}_filter_report.tsv
+    gawk '(\$4!~"_") && (\$4!~"?")' ${prefix}_report.tsv > ${prefix}_filter_report.tsv
     
-    perl trust-barcoderep-to-10X.pl ${prefix}_barcode_report.tsv ${prefix}
+    perl ${projectDir}/bin/trust-barcoderep-to-10X.pl ${prefix}_barcode_report.tsv ${prefix}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -189,13 +190,11 @@ process SUMMARIZE {
     container "biocontainers/numpy:1.24.4"
 
     input:
-    tuple val(meta), path(reads), path(match_dir)
+    tuple val(meta), path(reads)
     val seqtype
     val coef
     val expected_target_cell_num
     val target_weight
-    path target_cell_barcode
-    path fq2
     path assembled_reads
     path filter_report_tsv
     path annot_fa
@@ -220,13 +219,19 @@ process SUMMARIZE {
         --seqtype ${seqtype} \\
         --coef ${coef} \\
         --expected_target_cell_num ${expected_target_cell_num} \\
-        --target_cell_barcode ${target_cell_barcode} \\
+        --target_cell_barcode ${params.target_cell_barcode} \\
         --target_weight ${target_weight} \\
         --fq2 ${r2} \\
         --assembled_reads ${assembled_reads} \\
         --filter_report_tsv ${filter_report_tsv} \\
         --annot_fa ${annot_fa} \\
-        --barcode_report ${barcode_report} \\
+        --barcode_report ${barcode_report}
+
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        numpy: \$(numpy --version | sed -e "s/numpy version //g")
+    END_VERSIONS
     """
 }
 
@@ -238,7 +243,7 @@ process ANNOTATE {
     container "biocontainers/pandas:1.5.2"
 
     input:
-    tuple val(meta), path(reads), path(match_dir)
+    tuple val(meta), path(reads)
     val seqtype
     path filter_contig_csv
     path clonotype
@@ -297,12 +302,11 @@ workflow scflv {
         barcode_report = RUN_TRUST4.out.barcode_report_t
     }
     SUMMARIZE (
+        PROTOCOL_CMD.out.out_reads,
         params.seqtype,
         params.coef,
         params.expected_target_cell_num,
         params.target_weight,
-        params.target_cell_barcode,
-        PROTOCOL_CMD.out.reads,
         RUN_TRUST4.out.assembled_reads,
         RUN_TRUST4.out.filter_report_tsv,
         RUN_TRUST4.out.annot_fa,
@@ -311,6 +315,7 @@ workflow scflv {
 
     // ANNOTATE
     ANNOTATE (
+        PROTOCOL_CMD.out.out_reads,
         params.seqtype,
         SUMMARIZE.out.filter_contig_csv,
         SUMMARIZE.out.clonotype

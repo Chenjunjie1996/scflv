@@ -1,4 +1,5 @@
 import gzip
+import pandas as pd
 
 
 def openfile(file_name, mode='rt', **kwargs):
@@ -10,10 +11,16 @@ def openfile(file_name, mode='rt', **kwargs):
     return file_obj
 
 
-def read_one_col(fn):
-    """read one column file into list"""
-    with openfile(fn) as f:
-        return [x.strip() for x in f]
+def read_one_col(file):
+    """
+    Read file with one column. Strip each line.
+    Returns col_list, line number
+    """
+    df = pd.read_csv(file, header=None)
+    col1 = list(df.iloc[:, 0])
+    col1 = [item.strip() for item in col1]
+    num = len(col1)
+    return col1, num
 
 
 def format_value(value, total=None):

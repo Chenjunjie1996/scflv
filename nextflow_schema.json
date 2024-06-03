@@ -67,7 +67,7 @@
         "species": {
             "type": "string",
             "default": "human",
-            "enum": ["human, mouse"],
+            "enum": ["human", "mouse"],
             "description": "species.",
             "help_text": "human or mouse."
         }
@@ -81,7 +81,7 @@
         "properties": {
           "seqtype": {
               "type": "string",
-              "enum": ["BCR, TCR"],
+              "enum": ["BCR", "TCR"],
               "description": "BCR or TCR"
         },
         "coef": {

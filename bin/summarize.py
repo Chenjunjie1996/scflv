@@ -385,6 +385,12 @@ if __name__ == "__main__":
     parser.add_argument('--barcode_report', required=True)
     args = parser.parse_args()
     
+    if not args.target_cell_barcode:
+        target_barcodes = None
+        expected_target_cell_num = args.expected_target_cell_num
+    else:
+        target_barcodes, expected_target_cell_num = utils.read_one_col(args.target_cell_barcode)
+
     original_df = parse_contig_file(args.sample, args.barcode_report, args.annot_fa)
     df_for_clono, cell_barcodes, filtered_contig = cell_calling(
         original_df, args.seqtype, args.filter_report_tsv,
