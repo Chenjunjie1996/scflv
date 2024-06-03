@@ -119,21 +119,21 @@ process RUN_TRUST4 {
     val (species)
 
     output:
-    tuple val(meta), path("*_toassemble*")         , emit: candidate_reads
-    tuple val(meta), path("*_report.tsv")          , emit: report_tsv
-    tuple val(meta), path("*_filter_report.tsv")   , emit: filter_report_tsv
-    tuple val(meta), path("*_raw.out")             , emit: raw_out
-    tuple val(meta), path("*_final.out")           , emit: final_out
-    tuple val(meta), path("*_cdr3.out")            , emit: cdr3_out
-    tuple val(meta), path("*_assign.out")          , emit: assign_out
-    tuple val(meta), path("*_barcode_report.tsv")  , emit: barcode_report
-    tuple val(meta), path("*_barcode_airr.tsv")    , emit: barcode_airr
-    tuple val(meta), path("*_b.csv")               , emit: barcode_report_b
-    tuple val(meta), path("*_t.csv")               , emit: barcode_report_t
-    tuple val(meta), path("*_assembled_reads.fa")  , emit: assembled_reads
-    tuple val(meta), path("*_annot.fa")            , emit: annot_fa
-    tuple val(meta), path("*_airr.tsv")            , emit: airr_tsv
-    tuple val(meta), path("*_airr_align.tsv")      , emit: airr_alin
+    path("*_toassemble*")         , emit: candidate_reads
+    path("*_report.tsv")          , emit: report_tsv
+    path("*_filter_report.tsv")   , emit: filter_report_tsv
+    path("*_raw.out")             , emit: raw_out
+    path("*_final.out")           , emit: final_out
+    path("*_cdr3.out")            , emit: cdr3_out
+    path("*_assign.out")          , emit: assign_out
+    path("*_barcode_report.tsv")  , emit: barcode_report
+    path("*_barcode_airr.tsv")    , emit: barcode_airr
+    path("*_b.csv")               , emit: barcode_report_b
+    path("*_t.csv")               , emit: barcode_report_t
+    path("*_assembled_reads.fa")  , emit: assembled_reads
+    path("*_annot.fa")            , emit: annot_fa
+    path("*_airr.tsv")            , emit: airr_tsv
+    path("*_airr_align.tsv")      , emit: airr_alin
     path "versions.yml"                            , emit: versions
 
     when:
@@ -204,11 +204,11 @@ process SUMMARIZE {
     path "${meta.id}.count.txt", emit: umi_count_txt
     path "${meta.id}.cells_stats.json", emit: summary_json
     path "${meta.id}.umi_count.json", emit: umi_count_json
-    tuple val(meta), path("clonotypes.csv"), emit: clonotype
-    tuple val(meta), path("${meta.id}_all_contig.csv"), emit: all_contig_csv
-    tuple val(meta), path("${meta.id}_filtered_contig.csv"), emit: filter_contig_csv
-    tuple val(meta), path("${meta.id}_all_contig.fasta"), emit: all_contig_fa
-    tuple val(meta), path("${meta.id}_filtered_contig.fasta"), emit: filter_contig_fa
+    path("clonotypes.csv"), emit: clonotype
+    path("${meta.id}_all_contig.csv"), emit: all_contig_csv
+    path("${meta.id}_filtered_contig.csv"), emit: filter_contig_csv
+    path("${meta.id}_all_contig.fasta"), emit: all_contig_fa
+    path("${meta.id}_filtered_contig.fasta"), emit: filter_contig_fa
 
     script:
     // separate forward from reverse pairs

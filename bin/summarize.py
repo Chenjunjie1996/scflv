@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from collections import defaultdict
 import pandas as pd
 import numpy as np
@@ -384,8 +386,8 @@ if __name__ == "__main__":
     parser.add_argument('--annot_fa', required=True)
     parser.add_argument('--barcode_report', required=True)
     args = parser.parse_args()
-    
-    if not args.target_cell_barcode:
+
+    if args.target_cell_barcode == 'null':
         target_barcodes = None
         expected_target_cell_num = args.expected_target_cell_num
     else:
