@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 import pandas as pd
-import numpy as np
+import math
 import pyfastx
 import copy
 import json
@@ -11,29 +11,6 @@ import utils
 
 
 MAX_CELL = 2 * 10**5
-
-
-"""
-## Features
-- CDR3 filtering: contain stop condon, length <=5, etc..
-
-- If barcode A's two chains CDR3s are identical to another barcode B, and A's chain abundance is significantly lower than B's, filter A.
-
-- If `--target_cell_barcode` is provided, the UMI counts of all contigs originated from target cells are multiplied by a weight(default: 6.0) to better distinguish signal from background noise. `--target_cell_barcode` comes from the cell type annotation results of the RNA library.
-
-- Cell-calling is similar to the rna cell-calling algorithm.
-
-## Output
-- `clonetypes.tsv` High-level description for each clonotype.
-
-- `{sample}_all_contig.csv` High-level and detailed annotation for each contig.
-
-- `{sample}_all_contig.fasta` All assembled contig sequences.
-
-- `{sample}_filtered_contig.csv` High-level annotations of each cellular contig after filter. This is a subset of {sample}_all_contig.csv.
-    
-- `{sample}_filtered_contig.fasta` Assembled contig sequences after filter.
-"""
 
 
 class Auto():
@@ -57,6 +34,11 @@ class Auto():
         self.expected_cell_num = int(expected_cell_num)
         self.kwargs = kwargs
     
+    @staticmethod
+    def calculate_percentile(array, percentile):
+        size = len(array)
+        return sorted(array)[int(math.ceil((size * percentile) / 100)) - 1]
+
     def run(self):
         array = self.array
         if not array:
@@ -71,13 +53,60 @@ class Auto():
                 expected_cell_num = len(array)
                       
         sorted_counts = sorted(array, reverse=True)
-        count_cell_percentile = np.percentile(sorted_counts[:expected_cell_num], self.percentile)
+        count_cell_percentile = self.calculate_percentile(sorted_counts[:expected_cell_num], self.percentile)
         threshold = int(count_cell_percentile / self.coef)
 
         return threshold
 
+    
+def get_vdj_metric(df, chains, pairs):
+    """
+    Add vdj metrics.
+    """
+    data_dict = {}
+    fl_pro_pair_df = pd.DataFrame(df[df['productive']==True].barcode.value_counts())
+    fl_pro_pair_df = fl_pro_pair_df[fl_pro_pair_df['barcode']>=2]
+    cell_nums = len(set(df['barcode']))
+    
+    data_dict = {
+        'Cells With Productive V-J Spanning Pair': utils.format_value(fl_pro_pair_df.shape[0], cell_nums)
+    }
 
-def target_cell_calling(df_UMI_sum, expected_target_cell_num=3000, target_barcodes=None, weight=6, coef=5, 
+    for pair in pairs:
+        chain1, chain2 = pair.split('_')[0], pair.split('_')[1]
+        cbs1 = set(df[(df['full_length']==True)&(df['productive']==True)&(df['chain']==chain1)].barcode)
+        cbs2 = set(df[(df['full_length']==True)&(df['productive']==True)&(df['chain']==chain2)].barcode)
+        paired_cbs = len(cbs1.intersection(cbs2))
+
+        data_dict.update({
+            f'Cells With Productive V-J Spanning ({chain1}, {chain2}) Pair': utils.format_value(paired_cbs, cell_nums)
+        })
+
+    for chain in chains:
+        value = len(set(df[df['chain']==chain].barcode))
+        data_dict.update({
+            f'Cells With {chain} Contig': utils.format_value(value, cell_nums)
+        })
+
+        value = len(set(df[(df['chain']==chain)&(df['cdr3']!=None)].barcode))
+        data_dict.update({
+            f'Cells With CDR3-annotated {chain} Contig': utils.format_value(value, cell_nums)
+        })
+        
+        value = len(set(df[(df['full_length']==True)&(df['chain']==chain)].barcode))
+        data_dict.update({
+            f'Cells With V-J Spanning {chain} Contig': utils.format_value(value, cell_nums)
+        })
+
+        value = len(set(df[(df['full_length']==True)&(df['productive']==True)&(df['chain']==chain)].barcode))
+        data_dict.update({
+            f'Cells With Productive {chain} Contig': utils.format_value(value, cell_nums)
+        })
+
+    return data_dict
+
+
+def target_cell_calling(df_UMI_sum, expected_target_cell_num=3000, coef=5, 
     percentile=85, umi_col='umis'):
     """
     Args:
@@ -85,21 +114,11 @@ def target_cell_calling(df_UMI_sum, expected_target_cell_num=3000, target_barcod
     
     Returns:
         target_contigs_id: list
-    >>> df_UMI_sum = pd.DataFrame({"contig_id": ["A", "B", "C", "D", "E"], "UMI": [1, 2, 1, 30, 40]})
-    >>> target_contigs_id = target_cell_calling(df_UMI_sum, expected_target_cell_num=5, percentile=80, coef=5, target_barcodes=["A", "C"])
-    >>> target_contigs_id == {'A_1', 'C_1', 'D_1', 'E_1'}
-    True
     """
-    if target_barcodes != None:
-        target_barcodes = {i for i in target_barcodes}
     umi_threshold = Auto(list(df_UMI_sum[umi_col]), expected_cell_num=expected_target_cell_num, coef=coef, percentile=percentile).run()
 
     # avoid change the original dataframe
     df_temp = df_UMI_sum.copy()
-    if target_barcodes:
-        df_temp[umi_col] = df_temp.apply(
-            lambda row:  row[umi_col] * weight if row['barcode'] in target_barcodes else row[umi_col], axis=1)
-             
     target_contigs = set(df_temp.loc[df_temp[umi_col] >= umi_threshold].contig_id)
 
     return target_contigs
@@ -132,7 +151,7 @@ def parse_contig_file(sample, barcode_report, annot_fa):
     return df
 
  
-def cell_calling(df, seqtype, trust_report, expected_target_cell_num, target_barcodes, target_weight, coef):
+def cell_calling(df, seqtype, trust_report, expected_target_cell_num, coef):
     """
     Common filtering based on CDR3:
     Filter nonfunctional CDR3(shown 'out_of_frame' in cdr3 report), or CDR3 sequences containing "N" in the nucleotide sequence.
@@ -140,11 +159,6 @@ def cell_calling(df, seqtype, trust_report, expected_target_cell_num, target_bar
     Keep CDR3aa length >= 5.
     Keep no stop codon in CDR3aa.
     Filter low abundance contigs based on a umi cut-off. 
-
-    Target cell barcodes filtering(option, --target_cell_barcode needed):
-    Filter low abundance contigs based on a umi cut-off.
-    The umi counts of all contigs originated from B cells are multiplied by a weight to 
-    better distinguish signal from background noise.
     """
     df.sort_values(by='umis', ascending=False, inplace=True)
     if seqtype == 'BCR':
@@ -178,8 +192,6 @@ def cell_calling(df, seqtype, trust_report, expected_target_cell_num, target_bar
         target_contigs = target_cell_calling(
         _df, 
         expected_target_cell_num=expected_target_cell_num, 
-        target_barcodes=target_barcodes,
-        weight = target_weight,
         coef = coef
         )
         filtered_congtigs_id = filtered_congtigs_id | target_contigs       
@@ -261,7 +273,7 @@ def parse_clonotypes(sample, df, df_for_clono, cell_barcodes, filtered_contig):
 
     df_all_contig.to_csv(f'{sample}_all_contig.csv', sep=',', index=False)
     df_filter_contig.to_csv(f'{sample}_filtered_contig.csv', sep=',', index=False)
-        
+
 
 def gen_summary(sample, fq2, assembled_reads, seqtype, df_for_clono):
     """ Generate metrics in html 
@@ -324,11 +336,12 @@ def gen_summary(sample, fq2, assembled_reads, seqtype, df_for_clono):
         data_dict.update({f'Median {c} UMIs per Cell' : median_umi})
 
 
-    stats_file = sample + ".cells_stats.json"
+    stats_file = sample + ".scflv.stats.json"
     with open(stats_file, "w") as f:
         json.dump(data_dict, f)
         
     # UMI count
+    umi_count = df_umi['UMI']
     umi_count.loc[lambda x: x > 0]
     umi_count = umi_count.sort_values(ascending=False)
     plot_data = {}
@@ -367,7 +380,7 @@ def gen_summary(sample, fq2, assembled_reads, seqtype, df_for_clono):
     for i in range(MAX_CELL, n, 1000):
         plot_data[bg][i + 1] = int(umi_count.iloc[i])
 
-    umi_file = sample + ".umi_count.json"
+    umi_file = sample + ".scflv.umi_count.json"
     with open(umi_file, "w") as f:
         json.dump(plot_data, f)
 
@@ -378,8 +391,6 @@ if __name__ == "__main__":
     parser.add_argument('--seqtype', required=True)
     parser.add_argument('--coef', required=True)
     parser.add_argument("--expected_target_cell_num", required=True)
-    parser.add_argument('--target_cell_barcode')
-    parser.add_argument("--target_weight", required=True)
     parser.add_argument('--fq2', required=True)
     parser.add_argument('--assembled_reads', required=True)
     parser.add_argument('--filter_report_tsv', required=True)
@@ -387,19 +398,27 @@ if __name__ == "__main__":
     parser.add_argument('--barcode_report', required=True)
     args = parser.parse_args()
 
-    if args.target_cell_barcode == 'null':
-        target_barcodes = None
-        expected_target_cell_num = args.expected_target_cell_num
+    if args.seqtype == 'BCR':
+        chains = ['IGH', 'IGL', 'IGK']
+        paired_groups = ['IGK_IGH', 'IGL_IGH']
     else:
-        target_barcodes, expected_target_cell_num = utils.read_one_col(args.target_cell_barcode)
+        chains = ['TRA', 'TRB']
+        paired_groups = ['TRA_TRB']
 
+    # cell calling
     original_df = parse_contig_file(args.sample, args.barcode_report, args.annot_fa)
     df_for_clono, cell_barcodes, filtered_contig = cell_calling(
         original_df, args.seqtype, args.filter_report_tsv,
-        args.expected_target_cell_num, target_barcodes, args.target_weight, args.coef
+        args.expected_target_cell_num, args.coef
     )
     filter_fasta(args.sample, cell_barcodes)
     parse_clonotypes(args.sample, original_df, df_for_clono, cell_barcodes, filtered_contig)
     gen_summary(args.sample, args.fq2, args.assembled_reads, args.seqtype, df_for_clono)
-    
+
+    # vdj metrics
+    df = pd.read_csv(f'{args.sample}_filtered_contig.csv')
+    data_dict = get_vdj_metric(df, chains, paired_groups)
+    stats_file = args.sample + ".scflv.annotation.json"
+    with open(stats_file, "w") as f:
+        json.dump(data_dict, f)
     

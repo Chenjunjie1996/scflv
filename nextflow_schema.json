@@ -93,16 +93,6 @@
             "type": "integer",
             "default": 3000,
             "description": "Expected T or B cell number. If `--target_cell_barcode` is provided, this argument is ignored."
-        },
-        "target_weight": {
-            "type": "number",
-            "default": 6.0,
-            "description": "UMIs of the target cells are multiplied by this factor. Only used when `--target_cell_barcode` is provided."
-        },
-        "target_cell_barcode": {
-            "type": "string",
-            "format": "file-path",
-            "description": "Barcode of target cells. Auto or path of plain text file with one barcode per line."
         }
       }
     },

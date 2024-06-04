@@ -64,8 +64,8 @@ process PROTOCOL_CMD  {
     conda 'bioconda::pyfastx=2.1.0'
     container "biocontainers/pyfastx:2.1.0--py39h3d4b85c_0"
 
-    conda 'conda-forge::pandas==1.5.2'
-    container "biocontainers/pandas:1.5.2"
+    conda 'conda-forge::pandas==1.4.2'
+    container "biocontainers/pandas:1.4.2"
 
     conda 'conda-forge::biopython==1.78'
     container "biocontainers/biopython:1.78"
@@ -96,7 +96,6 @@ process PROTOCOL_CMD  {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         pyfastx: \$(pyfastx --version | sed -e "s/pyfastx version //g")
-        pandas: \$(pandas --version | sed -e "s/pandas version //g")
         biopython: \$(biopython --version | sed -e "s/biopython version //g")
     END_VERSIONS
     """
@@ -134,7 +133,7 @@ process RUN_TRUST4 {
     path("*_annot.fa")            , emit: annot_fa
     path("*_airr.tsv")            , emit: airr_tsv
     path("*_airr_align.tsv")      , emit: airr_alin
-    path "versions.yml"                            , emit: versions
+    path "versions.yml"           , emit: versions
 
     when:
     task.ext.when == null || task.ext.when
@@ -180,21 +179,17 @@ process SUMMARIZE {
     tag "$meta.id"
     label 'process_single'
 
-    conda 'conda-forge::pandas==1.5.2'
-    container "biocontainers/pandas:1.5.2"
+    conda 'conda-forge::pandas==1.4.2'
+    container "biocontainers/pandas:1.4.2"
 
     conda 'bioconda::pyfastx=2.1.0'
     container "biocontainers/pyfastx:2.1.0--py39h3d4b85c_0"
-
-    conda 'conda-forge::numpy==1.24.4'
-    container "biocontainers/numpy:1.24.4"
 
     input:
     tuple val(meta), path(reads)
     val seqtype
     val coef
     val expected_target_cell_num
-    val target_weight
     path assembled_reads
     path filter_report_tsv
     path annot_fa
@@ -202,14 +197,15 @@ process SUMMARIZE {
 
     output:
     path "${meta.id}.count.txt", emit: umi_count_txt
-    path "${meta.id}.cells_stats.json", emit: summary_json
-    path "${meta.id}.umi_count.json", emit: umi_count_json
-    path("clonotypes.csv"), emit: clonotype
-    path("${meta.id}_all_contig.csv"), emit: all_contig_csv
-    path("${meta.id}_filtered_contig.csv"), emit: filter_contig_csv
-    path("${meta.id}_all_contig.fasta"), emit: all_contig_fa
-    path("${meta.id}_filtered_contig.fasta"), emit: filter_contig_fa
-
+    path "${meta.id}.scflv.stats.json", emit: summary_json
+    path "${meta.id}.scflv.umi_count.json", emit: umi_count_json
+    path "${meta.id}.scflv.annotation.json", emit: annotation_json
+    path "clonotypes.csv", emit: clonotype
+    path "${meta.id}_all_contig.csv", emit: all_contig_csv
+    path "${meta.id}_filtered_contig.csv", emit: filter_contig_csv
+    path "${meta.id}_all_contig.fasta", emit: all_contig_fa
+    path "${meta.id}_filtered_contig.fasta", emit: filter_contig_fa
+    
     script:
     // separate forward from reverse pairs
     def (r1, r2) = reads.collate(2).transpose()
@@ -219,8 +215,6 @@ process SUMMARIZE {
         --seqtype ${seqtype} \\
         --coef ${coef} \\
         --expected_target_cell_num ${expected_target_cell_num} \\
-        --target_cell_barcode ${params.target_cell_barcode} \\
-        --target_weight ${target_weight} \\
         --fq2 ${r2[0]} \\
         --assembled_reads ${assembled_reads} \\
         --filter_report_tsv ${filter_report_tsv} \\
@@ -230,34 +224,8 @@ process SUMMARIZE {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        numpy: \$(numpy --version | sed -e "s/numpy version //g")
+        pandas: \$(pandas --version | sed -e "s/pandas version //g")
     END_VERSIONS
-    """
-}
-
-process ANNOTATE {
-    tag "$meta.id"
-    label 'process_single'
-
-    conda 'conda-forge::pandas==1.5.2'
-    container "biocontainers/pandas:1.5.2"
-
-    input:
-    tuple val(meta), path(reads)
-    val seqtype
-    path filter_contig_csv
-    path clonotype
-
-    output:
-    path "${meta.id}..V(D)J_Annotation.json", emit: annotation_json
-
-    script:
-    """
-    annotate.py \\
-        --sample ${meta.id} \\
-        --seqtype ${seqtype} \\
-        --annot_fa ${filter_contig_csv} \\
-        --barcode_report ${clonotype} \\
     """
 }
 
@@ -306,19 +274,10 @@ workflow scflv {
         params.seqtype,
         params.coef,
         params.expected_target_cell_num,
-        params.target_weight,
         RUN_TRUST4.out.assembled_reads,
         RUN_TRUST4.out.filter_report_tsv,
         RUN_TRUST4.out.annot_fa,
         barcode_report
-    )
-
-    // ANNOTATE
-    ANNOTATE (
-        PROTOCOL_CMD.out.out_reads,
-        params.seqtype,
-        SUMMARIZE.out.filter_contig_csv,
-        SUMMARIZE.out.clonotype
     )
 
     //
