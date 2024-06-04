@@ -142,7 +142,7 @@ process RUN_TRUST4 {
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
     def (r1, r2) = reads.collate(2).transpose()
-    def readformat = task.ext.readformat ?: "bc:0:23,um:24:-1"
+    def readformat = task.ext.readformat ?: "bc:0:25,um:26:-1"
     def run_trust4_cmd = "-u ${r2[0]} --barcode ${r1[0]} --UMI ${r1[0]} --outputReadAssignment"
     def fasta = null
     def vdj_reference = null
@@ -179,11 +179,8 @@ process SUMMARIZE {
     tag "$meta.id"
     label 'process_single'
 
-    conda 'conda-forge::pandas==1.4.2'
-    container "biocontainers/pandas:1.4.2"
-
-    conda 'bioconda::pyfastx=2.1.0'
-    container "biocontainers/pyfastx:2.1.0--py39h3d4b85c_0"
+    conda "${moduleDir}/environment.yml"
+    container "quay.io/singleron-rd/sccore:v0.0.0"
 
     input:
     tuple val(meta), path(reads)

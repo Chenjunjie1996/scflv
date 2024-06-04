@@ -3,7 +3,7 @@
 from collections import defaultdict
 import pandas as pd
 import math
-import pyfastx
+import pysam
 import copy
 import json
 import argparse
@@ -139,12 +139,12 @@ def parse_contig_file(sample, barcode_report, annot_fa):
     # add length of each contig. 
     len_dict = dict()
     all_fa = open(f'{sample}_all_contig.fasta' , 'w')
-    fa = pyfastx.Fasta(annot_fa)
-    for read in fa:
-        len_dict[read.name] = read.description.split(' ')[1]
-        if read.name in contig_set:
-            sequence = read.seq
-            all_fa.write('>' + read.name + '\n' + sequence + '\n')    
+    with pysam.FastxFile(annot_fa) as fa:
+        for read in fa:
+            len_dict[read.name] = read.comment.split(' ')[0]
+            if read.name in contig_set:
+                sequence = read.sequence
+                all_fa.write('>' + read.name + '\n' + sequence + '\n')      
     all_fa.close()
     df['length'] = df['contig_id'].apply(len_dict.get)
 
@@ -213,14 +213,13 @@ def filter_fasta(sample, cell_barcodes):
     filter_contig_fasta = f'{sample}_filtered_contig.fasta'
 
     filter_contig_fasta = open(filter_contig_fasta,'w')
-    fa = pyfastx.Fasta(all_contig_fasta)
-    for read in fa:
-        name = read.name
-        cb = '_'.join(name.split('_')[:-1]) # remove the suffix num in "bc1_bc2_bc3_num"
-        sequence = read.seq
-        if cb in cell_barcodes:
-            filter_contig_fasta.write('>' + name + '\n' + sequence + '\n')
-
+    with pysam.FastxFile(all_contig_fasta) as fa:
+        for read in fa:
+            name = read.name
+            cb = '_'.join(name.split('_')[:-1]) # remove the suffix num in "bc1_bc2_bc3_num"
+            sequence = read.sequence
+            if cb in cell_barcodes:
+                filter_contig_fasta.write('>' + name + '\n' + sequence + '\n')
     filter_contig_fasta.close()
 
 
@@ -286,14 +285,15 @@ def gen_summary(sample, fq2, assembled_reads, seqtype, df_for_clono):
     read_count_all = 0
     umi_dict = defaultdict(set)
     umi_count = defaultdict()
-    fq = pyfastx.Fastx(fq2)
-    for read in fq:
-        read_count_all+=1
-        cb = read[0].split(':')[0]
-        umi = read[0].split(':')[1]
-        umi_dict[cb].add(umi)
-        if cb in cell_barcodes:
-            read_count+=1
+    with pysam.FastxFile(fq2) as fq:
+        for read in fq:
+            read_count_all+=1
+            cb = read.name.split(':')[0]
+            umi = read.name.split(':')[1]
+            umi_dict[cb].add(umi)
+            if cb in cell_barcodes:
+                read_count+=1
+
     for cb in umi_dict:
         umi_count[cb] = len(umi_dict[cb])
     df_umi = pd.DataFrame.from_dict(umi_count, orient='index', columns=['UMI'])
@@ -306,11 +306,11 @@ def gen_summary(sample, fq2, assembled_reads, seqtype, df_for_clono):
     # self.add_data(chart=get_plot_elements.plot_barcode_rank(f'{self.outdir}/count.txt'))
 
     used_read = 0
-    fa = pyfastx.Fastx(assembled_reads)
-    for read in fa:
-        bc = read[0].split(':')[0]
-        if bc in cell_barcodes:
-            used_read += 1
+    with pysam.FastxFile(assembled_reads) as fa:
+        for read in fa:
+            bc = read.name.split(':')[0]
+            if bc in cell_barcodes:
+                used_read += 1
     
     if seqtype == 'TCR':
         chains = ['TRA', 'TRB']
